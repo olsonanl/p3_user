@@ -3,6 +3,7 @@ var path = require('path')
 var logger = require('morgan')
 var config = require('./config')
 var cors = require('cors')
+var corsOptions = require('./corsOptions')
 var fs = require('fs-extra')
 var app = express()
 var DataModel = require('./dataModel')
@@ -76,7 +77,10 @@ app.use((req,res,next)=>{
 	next()
 });
 
-app.use(cors({origin: true, methods: ['GET', 'PUT', 'patch', 'PATCH', 'POST', 'PUT', 'DELETE'], allowHeaders: ['accept', 'content-type', 'authorization'], exposedHeaders: ['Content-Range', 'X-Content-Range', 'Content-type'], credential: true, maxAge: 8200}))
+// See corsOptions.js. The previous inline configuration misspelled two keys
+// (credential/allowHeaders), so credentials never worked and the header list
+// was silently replaced by reflection of whatever the browser asked for.
+app.use(cors(corsOptions(config)))
 
 app.use(function (req, res, next) {
   req.config = config
