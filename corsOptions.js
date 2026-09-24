@@ -86,8 +86,52 @@
  * Do not remove it on the grounds that nothing reads it server-side. The
  * question for this list is what the CLIENT SENDS, not what the server
  * consumes -- a header omitted here fails preflight before any handler runs.
+ *
+ * `range` and `x-range` are here for the same reason. p3_user implements no
+ * Range semantics at all, but dojo/store/JsonRest sets both headers itself
+ * whenever a query carries start/count -- dojo/store/JsonRest.js:191-200:
+ *
+ *     if(options.start >= 0 || options.count >= 0){
+ *       headers["X-Range"] = "items=" + ...
+ *       if(this.rangeParam){ ... } else { headers.Range = headers["X-Range"] }
+ *     }
+ *
+ * Note X-Range is set UNCONDITIONALLY on that branch, while Range is set only
+ * when rangeParam is falsy. The class doc says so explicitly at :48-50 --
+ * "Independent of this, the X-Range header is always set." Allowing `range`
+ * without `x-range` therefore fixes nothing: both go out together, and the
+ * preflight fails on whichever is missing.
+ *
+ * The workspace sharing dialog hits this: PermissionEditor.js:153 constructs a
+ * UserSelector, whose store targets `<accountURL>/user/` -- this service,
+ * cross-origin -- and whose _AutoCompleterMixin paginates, so every user
+ * lookup preflights with both headers. Symptom is a CORS failure on the search
+ * box, not a 416 or a bad page of results, because the request never reaches
+ * us. It surfaces downstream as `undefined is not an object (evaluating
+ * 'a.total')`, because JsonRest's QueryResults.total never resolves.
+ *
+ * `if-match` / `if-none-match` are sent by JsonRest.put() when a call passes
+ * options.overwrite (dojo/store/JsonRest.js:135-136). Nothing writes to this
+ * service through a store today, but the cost of listing them is zero and the
+ * failure mode if one ever does is another silent preflight rejection.
+ *
+ * This list is intentionally the same set p3_api allows
+ * (p3_api/util/corsOptions.js). The two services are called by the same dojo
+ * client, so a header one needs the other generally needs too; p3_user was
+ * missed when that list was written, and has now been patched twice in a row
+ * for headers p3_api already had. Keep them in sync rather than discovering
+ * the difference one broken feature at a time.
  */
-var ALLOWED_HEADERS = ['accept', 'content-type', 'authorization', 'x-requested-with']
+var ALLOWED_HEADERS = [
+  'accept',
+  'authorization',
+  'content-type',
+  'if-match',
+  'if-none-match',
+  'range',
+  'x-range',
+  'x-requested-with'
+]
 
 var EXPOSED_HEADERS = ['Content-Range', 'X-Content-Range', 'Content-type']
 
